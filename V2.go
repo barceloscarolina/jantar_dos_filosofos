@@ -22,6 +22,17 @@ const (
 	timeToEat     = 3
 )
 
+
+// Métricas
+var counterMutex sync.Mutex // mutex que protege o acesso a eatingNow e maxEating
+var eatingNow int           // quantos estão comendo agora
+var maxEating int           // maior valor de eatingNow observado
+
+// Cada filósofo escreve apenas na sua própria posição
+var waitTotal [philosophers]time.Duration
+var waitMax [philosophers]time.Duration
+var cycles [philosophers]int
+
 // Cada Mutex representa um garfo.
 // Um garfo pode ser utilizado por apenas um filosofo de cada vez.
 var forks [philosophers]sync.Mutex
@@ -44,6 +55,8 @@ func Philosopher(id int, wg *sync.WaitGroup) {
 		//Adquirindo garfos
 		fmt.Printf("P%d tenta pegar G%d e G%d\n", id+1, leftFork+1, rightFork+1)
 
+		startWait := time.Now()
+
 		//1 filósofo bloqueia os demais, enquanto está pegando os DOIS garfos
 		pickForksMutex.Lock()
 
@@ -55,13 +68,32 @@ func Philosopher(id int, wg *sync.WaitGroup) {
 		//Conseguiu os garfos
 		fmt.Printf("P%d pegou G%d e G%d\n", id+1, leftFork+1, rightFork+1)
 
+		wait := time.Since(startWait)
+		waitTotal[id] += wait
+		if wait > waitMax[id] {
+			waitMax[id] = wait
+		}
+
 		//Comendo
+		counterMutex.Lock()
+		eatingNow++
+		if eatingNow > maxEating {
+			maxEating = eatingNow
+		}
+		counterMutex.Unlock()
+
 		fmt.Printf("P%d: E%d\n", id+1, iteration)
 		time.Sleep(time.Duration(timeToEat) * time.Second)
+
+		counterMutex.Lock()
+		eatingNow--
+		counterMutex.Unlock()
 
 		//Libera os garfos após comer
 		forks[leftFork].Unlock()
 		forks[rightFork].Unlock()
+
+		cycles[id]++
 
 	}
 }
@@ -86,4 +118,24 @@ func main() {
 	elapsed := time.Since(start)
 
 	fmt.Printf("\nV2 Dinner took %s\n\n", elapsed)
+
+	// cálculo das métricas
+	var somaEspera time.Duration
+	var maiorEspera time.Duration
+	for i := 0; i < philosophers; i++ {
+		somaEspera += waitTotal[i]
+		if waitMax[i] > maiorEspera {
+			maiorEspera = waitMax[i]
+		}
+	}
+	esperaMedia := somaEspera / time.Duration(philosophers*rounds)
+
+	fmt.Println("\n===== RESUMO V2 =====")
+	fmt.Printf("Tempo total: %s\n", elapsed)
+	fmt.Printf("Tempo médio de espera pelos garfos: %s\n", esperaMedia)
+	fmt.Printf("Maior tempo de espera: %s\n", maiorEspera)
+	fmt.Printf("Máximo de filósofos comendo simultaneamente: %d\n", maxEating)
+	for i := 0; i < philosophers; i++ {
+		fmt.Printf("P%d concluiu %d ciclos\n", i+1, cycles[i])
+	}
 }
