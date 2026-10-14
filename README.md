@@ -15,9 +15,14 @@ Execução:
 Execute cada versão na raiz do projeto:
 
 go run V0.go
+
 go run V1.go
+
 go run V2.go
+
 go run V3.go
+
+
 
 Cada filósofo executa 20 ciclos, com tempos simulados de 2 segundos para pensar e 3 segundos para comer.
 
